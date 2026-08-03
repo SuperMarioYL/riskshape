@@ -6,31 +6,31 @@
   "lang": { "primary": "zh", "toggle": true },
   "accent": ["#0a84ff", "#5e5ce6", "#30d158"],
   "hero": {
-    "eyebrow": { "zh": "少打断 · 会学习 · 本地优先", "en": "Fewer interrupts · Learns · Local-first" },
+    "eyebrow": { "zh": "少打断 · 会学习 · 本地优先 · 全 agent", "en": "Fewer interrupts · Learns · Local-first · Every agent" },
     "headline": { "zh": "你的 agent\n不再每一步都打断你", "en": "Your agent\nstops interrupting you every step" },
-    "sub": { "zh": "从你过去标注的决策里学会哪些操作可以自动放行，只在真正陌生的风险上才找你确认——把人工审查从 O(每个动作) 压缩到 O(异常)。", "en": "Learns from your past decision labels which actions are safe to auto-approve, and only escalates on genuinely novel-risk shapes — collapsing human review from O(every-action) to O(anomaly)." },
+    "sub": { "zh": "从你过去标注的决策里学会哪些操作可以安全放行，只在真正陌生的风险上才找你——并把同一份学会的信任带进你用的每一个编码 agent。", "en": "Learns from your past labels which actions are safe to auto-approve, only escalates on genuinely novel risk, and carries that same learned trust into every coding agent you use." },
     "command": "uvx riskshape init"
   },
   "advantages": [
     {
       "title": { "zh": "第 50 次 npm install，不再问你", "en": "The 50th npm install, no longer asks" },
-      "body": { "zh": "从你的历史标签学会熟悉动作可以安全放行，重复的工具调用自动批准。", "en": "Learns from your history that familiar actions are safe to auto-approve; repetitive tool calls flow through on their own." },
-      "chips": ["› git status / npm install / pytest 预标安全", "› 38 条种子语料开箱即用"]
+      "body": { "zh": "从你的历史标签学会熟悉动作可以安全放行；重复的工具调用自动批准，而且你能用一条命令看见它学会了。", "en": "Learns from your history that familiar actions are safe to auto-approve; repetitive calls flow through on their own — and one command shows you it learned." },
+      "chips": ["› git status / npm install / pytest 预标安全", "› 一条命令看它学会"]
     },
     {
       "title": { "zh": "只在真正陌生的风险上找你", "en": "Only escalates on genuinely novel risk" },
-      "body": { "zh": "没见过的动作形状——比如 curl 未知主机再管道给 bash——才上报人工，其余自动放行。", "en": "Unseen action shapes — like curl to an unknown host piped to bash — escalate to you; everything else flows through." },
-      "chips": ["› 新型网络外发管道自动上报", "› 熟悉 = 放行，陌生 = 找你"]
+      "body": { "zh": "没见过的动作——curl 未知主机再管道给 bash——才上报人工；破坏性命令无论怎么写都照常上报，绝不自动放行。", "en": "Unseen actions — like curl to an unknown host piped to bash — escalate to you; destructive commands escalate no matter how they're written, never auto-approved." },
+      "chips": ["› 破坏性命令怎么写都照常上报", "› 熟悉 = 放行，陌生 = 找你"]
+    },
+    {
+      "title": { "zh": "同一份信任，带进每个 agent", "en": "One learned trust, across every agent" },
+      "body": { "zh": "Cursor、Aider、Claude Code 共享同一份学会的信任——你在哪个工具里积累的标签，都跟着你走。", "en": "Cursor, Aider, and Claude Code share one learned trust — the labels you build in any tool follow you across all of them." },
+      "chips": ["› Cursor / Aider / Claude Code 一处学会", "› 任何 agent 都能查风险分级"]
     },
     {
       "title": { "zh": "本地一个文件，数据不出境", "en": "One local file, data never leaves" },
       "body": { "zh": "一个进程、一个本地文件、无后台服务。所有标签留在你机器里——这正是企业自托管买家要的那条保证。", "en": "One process, one local file, no backend service. Every label stays on your machine — the guarantee enterprise self-host buyers pay for." },
       "chips": ["› 单进程 + 本地文件", "› 无账号、无云"]
-    },
-    {
-      "title": { "zh": "一行接入你的编码 agent", "en": "One line into your coding agent" },
-      "body": { "zh": "把打印出来的片段粘进 settings——动作前检查、动作后回写标签——就接上了。冷克隆到第一个自动批准 ≤10 分钟。", "en": "Paste the printed snippet into settings — check before each action, label after — and you're wired in. Cold clone to first auto-approve in ≤10 minutes." },
-      "chips": ["› riskshape init 打印接入片段", "› MIT 开源"]
     }
   ],
   "scene": { "kind": "mesh" },
@@ -39,5 +39,5 @@
     "sub": { "zh": "uvx 即装，本地运行，MIT 开源。", "en": "uvx install, runs locally, MIT open source." },
     "button": { "zh": "在 GitHub 上看", "en": "See on GitHub" }
   },
-  "footer": { "tag": { "zh": "MIT 开源 · 本地优先", "en": "MIT open source · local-first" } }
+  "footer": { "tag": { "zh": "MIT 开源 · 本地优先 · 全 agent", "en": "MIT open source · local-first · every agent" } }
 }
