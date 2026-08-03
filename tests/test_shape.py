@@ -167,3 +167,62 @@ class TestKeyDeterminism:
         # sorted JSON signature -> stable across calls regardless of insertion order
         t = normalize("FutureTool", {"y": [2, 3], "x": 1})
         assert s.key == t.key
+
+
+class TestRmLongFormDestructive:
+    """v0.2 fix: GNU long-form `rm --recursive` (with/without --force) is fs-destructive."""
+
+    def test_rm_recursive_long_form_is_fs_destructive(self):
+        s = normalize("Bash", {"command": "rm --recursive --force /tmp/scratch"})
+        assert s.capability_scope == "fs-destructive"
+
+    def test_rm_recursive_alone_is_fs_destructive(self):
+        s = normalize("Bash", {"command": "rm --recursive /tmp/junk"})
+        assert s.capability_scope == "fs-destructive"
+
+    def test_rm_recursive_flag_order_is_fs_destructive(self):
+        s = normalize("Bash", {"command": "rm --force --recursive /tmp/junk"})
+        assert s.capability_scope == "fs-destructive"
+
+    def test_rm_recursive_with_path_before_flag_is_fs_destructive(self):
+        s = normalize("Bash", {"command": "rm /tmp/junk --recursive"})
+        assert s.capability_scope == "fs-destructive"
+
+    def test_short_form_rf_still_destructive(self):
+        # regression guard: the v0.1 short-form detection must still fire
+        s = normalize("Bash", {"command": "rm -rf node_modules"})
+        assert s.capability_scope == "fs-destructive"
+
+    def test_plain_non_recursive_rm_is_not_destructive(self):
+        s = normalize("Bash", {"command": "rm file.txt"})
+        assert s.capability_scope != "fs-destructive"
+
+
+class TestFsPathNormalization:
+    """v0.2 fix: same file via different path spellings collapses to one shape key."""
+
+    def test_dot_slash_collapses_to_same_key(self):
+        a = normalize("Read", {"file_path": "./README.md"})
+        b = normalize("Read", {"file_path": "README.md"})
+        assert a.key == b.key
+        assert a.signature == b.signature == "README.md"
+
+    def test_dotdot_segments_collapse(self):
+        a = normalize("Read", {"file_path": "subdir/../README.md"})
+        b = normalize("Read", {"file_path": "README.md"})
+        assert a.key == b.key
+
+    def test_repeated_slashes_collapse(self):
+        a = normalize("Read", {"file_path": "/repo//src/./app.py"})
+        b = normalize("Read", {"file_path": "/repo/src/app.py"})
+        assert a.key == b.key
+
+    def test_trailing_slash_still_collapses(self):
+        a = normalize("Read", {"file_path": "/repo/src/"})
+        b = normalize("Read", {"file_path": "/repo/src"})
+        assert a.key == b.key
+
+    def test_distinct_files_remain_distinct(self):
+        a = normalize("Read", {"file_path": "/repo/a/README.md"})
+        b = normalize("Read", {"file_path": "/repo/b/README.md"})
+        assert a.key != b.key

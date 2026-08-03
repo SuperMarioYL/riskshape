@@ -22,6 +22,7 @@ import click
 
 from . import __version__
 from .config import Config
+from .converge import converge_report, format_report, load_corpus, synthetic_corpus
 from .grader import Decision, Grader, Outcome
 from .hook import (
     emit_snippet,
@@ -140,8 +141,14 @@ def init(force: bool) -> None:
 
 
 def _has_seed(ledger: Ledger) -> bool:
+    """True if the ledger already carries any labels (the seed corpus OR operator labels).
+
+    Checks ``total > 0`` (not ``safe > 0``) so a ledger the operator populated with
+    only ``unsafe`` labels is NOT misread as unseeded — otherwise ``riskshape init``
+    (without ``--force``) would silently re-seed safe labels into it.
+    """
     try:
-        return any(s.safe > 0 for s in ledger.list_shapes())
+        return any(s.total > 0 for s in ledger.list_shapes())
     except Exception:
         return False
 
@@ -247,17 +254,41 @@ def hook_snippet() -> None:
 
 
 @cli.command()
-def converge() -> None:
-    """[v0.2 roadmap] Prove grader convergence on a 500-action labeled corpus.
+@click.option(
+    "--corpus", "corpus_path", default=None, type=click.Path(exists=True, dir_okay=False),
+    help="Path to a JSON labeled corpus. Default: built-in 500-action synthetic corpus.",
+)
+@click.option(
+    "--json", "as_json", is_flag=True, default=False,
+    help="Emit the report as JSON instead of human-readable text.",
+)
+def converge(corpus_path, as_json) -> None:
+    """Prove grader convergence on a labeled action corpus (v0.2).
 
-  Not implemented in v0.1. The empirical grader already converges by
-  construction (P(safe) is a running frequency); the v0.2 `converge` report
-  will quantify convergence rate on a public 500-action corpus + expose the
-  ledger as an MCP server tool + ship Cursor/Aider adapters.
+    Replays the corpus cumulatively: each action is graded using only the labels
+    seen BEFORE it, then its own label is recorded. Repeated safe shapes converge
+    to auto_approve once they clear min_samples at p_safe >= tau; novel / unsafe /
+    privileged shapes keep escalating.
     """
-    click.echo("riskshape converge is a v0.2 roadmap item (see README roadmap).")
-    click.echo("The v0.1 grader is empirical P(safe) per shape; convergence is")
-    click.echo("observable today via: riskshape ledger")
+    corpus = load_corpus(corpus_path) if corpus_path else synthetic_corpus(500)
+    rep = converge_report(corpus)
+    if as_json:
+        import json as _json
+        click.echo(_json.dumps(rep, indent=2))
+    else:
+        click.echo(format_report(rep))
+
+
+@cli.group(name="mcp")
+def mcp() -> None:
+    """Run RiskShape as an MCP server (multi-framework reach, v0.2)."""
+
+
+@mcp.command()
+def serve() -> None:
+    """Run the MCP stdio server exposing the ledger (grade/decide/record/ledger)."""
+    from .mcp_server import serve as _serve
+    sys.exit(_serve())
 
 
 @cli.command()

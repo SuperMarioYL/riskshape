@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -56,6 +57,10 @@ class ActionShape:
 
 _RM_RF = re.compile(r"\brm\s+(?:-[a-zA-Z]*r[a-zA-Z]*f?|-[a-zA-Z]*f[a-zA-Z]*r)\b")
 _RM_RF_PLAIN = re.compile(r"\brm\s+-rf\b")
+# GNU long-form recursive delete (`rm --recursive`, with or without --force) is just
+# as destructive as `-rf` but the single-token regexes above miss it — without this
+# the compliance invariant (destructive shapes ALWAYS escalate) can be bypassed.
+_RM_RECURSIVE_LONG = re.compile(r"\brm\s+(?:\S+\s+)*--recursive\b")
 _GIT_PUSH_FORCE = re.compile(r"\bgit\s+push\s+(?:.+\s)?(?:--force|-f\b|--force-with-lease)")
 _PIPE_TO_SHELL = re.compile(r"\|\s*(?:bash|sh|zsh|dash|ksh)\b")
 _CURL_WGET = re.compile(r"\b(?:curl|wget)\b")
@@ -106,6 +111,8 @@ def _derive_bash_capability(command: str) -> str:
         return "shell-exec"
     if _RM_RF.search(command) or _RM_RF_PLAIN.search(command):
         return "fs-destructive"
+    if _RM_RECURSIVE_LONG.search(command):
+        return "fs-destructive"
     if _GIT_PUSH_FORCE.search(command):
         return "vcs-destructive"
     if _PIPE_TO_SHELL.search(command) and _CURL_WGET.search(command):
@@ -137,9 +144,12 @@ def _signature_for_fs_tool(tool_input: dict, key: str = "file_path") -> str:
     val = tool_input.get(key) or tool_input.get("path") or tool_input.get("notebook_path")
     if not val:
         return ""
-    # Normalize the path: resolve "." and trailing slashes but keep it absolute-ish
-    # so the same file normalizes across calls.
-    return str(val).rstrip("/")
+    # Normalize the path so the same file normalizes across calls (the convergence
+    # guarantee): collapse "./", redundant ".." segments and repeated slashes via
+    # os.path.normpath, then strip a trailing separator. Keeping the path otherwise
+    # as-given avoids a false collapse between distinct same-named files in
+    # different directories when cwd is unknown.
+    return os.path.normpath(str(val)).rstrip("/")
 
 
 def _signature_for_search_tool(tool_input: dict) -> str:
