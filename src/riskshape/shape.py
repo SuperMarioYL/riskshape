@@ -55,17 +55,38 @@ class ActionShape:
 
 # --- bash command normalization + capability derivation ---------------------
 
-_RM_RF = re.compile(r"\brm\s+(?:-[a-zA-Z]*r[a-zA-Z]*f?|-[a-zA-Z]*f[a-zA-Z]*r)\b")
-_RM_RF_PLAIN = re.compile(r"\brm\s+-rf\b")
-# GNU long-form recursive delete (`rm --recursive`, with or without --force) is just
-# as destructive as `-rf` but the single-token regexes above miss it — without this
-# the compliance invariant (destructive shapes ALWAYS escalate) can be bypassed.
+# Recursive delete via short flags: matches any `rm` invocation whose flag
+# tokens include a recursive flag (-r/-R, alone or combined like -rf/-fr/-rv/-Rv)
+# in ANY position and ANY order — including SEPARATE tokens (`rm -f -r`). The
+# `(?:\s+\S+)*` scan makes detection order-independent so force-before-recursive
+# (`rm -f -r`) is caught just like recursive-before-force (`rm -r -f`), closing
+# the separate-flag bypass the single-token regexes below used to miss.
+_RM_RECURSIVE_SHORT = re.compile(
+    r"\brm\b(?:\s+\S+)*\s+-[a-zA-Z]*[rR][a-zA-Z]*\b"
+)
+# GNU long-form recursive delete (`rm --recursive`, with or without --force) is
+# just as destructive as `-rf` but the short-flag regex above misses the long
+# form — without this the compliance invariant (destructive shapes ALWAYS
+# escalate) can be bypassed.
 _RM_RECURSIVE_LONG = re.compile(r"\brm\s+(?:\S+\s+)*--recursive\b")
-_GIT_PUSH_FORCE = re.compile(r"\bgit\s+push\s+(?:.+\s)?(?:--force|-f\b|--force-with-lease)")
+_GIT_PUSH_FORCE = re.compile(
+    r"\bgit\s+push\s+(?:.+\s)?(?:--force|-f\b|--force-with-lease|\+\w)"
+)
 _PIPE_TO_SHELL = re.compile(r"\|\s*(?:bash|sh|zsh|dash|ksh)\b")
 _CURL_WGET = re.compile(r"\b(?:curl|wget)\b")
-_DD_MKFS = re.compile(r"\b(?:dd\s+if=|mkfs(?:\.\w+)?\b|>\s*/dev/sd)")
-_CHMOD_R_SYS = re.compile(r"\bchmod\s+-R\b")
+# dd writing to a block device via of= (with OR without if=) is destructive, as
+# is dd reading from a device (if=), mkfs on any device, and a shell redirect
+# onto /dev/sd*. The `of=/dev/` branch closes the bypass where `dd of=/dev/sda`
+# (no if=, no shell redirect) escaped detection and fell through to shell-exec.
+_DD_MKFS = re.compile(
+    r"\b(?:dd\s+if=|dd\s+.*?of=/dev/|mkfs(?:\.\w+)?\b|>\s*/dev/sd)"
+)
+# Recursive chmod is destructive: catch -R (alone or combined like -Rv/-vR) AND
+# --recursive, scanning all flag-token positions so order/separate-token forms
+# (`chmod -v -R .`) are caught just like `chmod -Rv .` — mirrors the rm fix.
+_CHMOD_RECURSIVE = re.compile(
+    r"\bchmod\b(?:\s+\S+)*\s+(?:-[a-zA-Z]*R[a-zA-Z]*|--recursive)\b"
+)
 _SUDO = re.compile(r"\bsudo\b")
 
 _READONLY_CMDS = re.compile(
@@ -101,17 +122,16 @@ def _derive_bash_capability(command: str) -> str:
     Privileged scopes (see config.DEFAULT_PRIVILEGED_SCOPES) are the ones the
     compliance mode never auto-promotes:
       - fs-destructive: rm -rf, dd, mkfs, chmod -R on system paths
-      - vcs-destructive: git push --force
+      - vcs-destructive: git push --force / +refspec
       - network-egress-pipe: curl/wget piped to a shell
+      - shell-privileged: any sudo-bearing command
 
     Non-privileged scopes (escalate-when-novel, auto-approve-when-safe):
       - shell-readonly / build-install / shell-exec / network-egress / fs-read
     """
     if not command:
         return "shell-exec"
-    if _RM_RF.search(command) or _RM_RF_PLAIN.search(command):
-        return "fs-destructive"
-    if _RM_RECURSIVE_LONG.search(command):
+    if _RM_RECURSIVE_SHORT.search(command) or _RM_RECURSIVE_LONG.search(command):
         return "fs-destructive"
     if _GIT_PUSH_FORCE.search(command):
         return "vcs-destructive"
@@ -119,7 +139,7 @@ def _derive_bash_capability(command: str) -> str:
         return "network-egress-pipe"
     if _DD_MKFS.search(command):
         return "fs-destructive"
-    if _CHMOD_R_SYS.search(command):
+    if _CHMOD_RECURSIVE.search(command):
         return "fs-destructive"
     if _PIPE_TO_SHELL.search(command):
         # Pipe to shell without a known egress fetcher — still treat as

@@ -12,12 +12,16 @@ from pathlib import Path
 
 # Privileged capability scopes are NEVER auto-promoted, even at grade 1.0.
 # This is the compliance-mode guarantee: destructive/irreversible shapes and
-# egress-to-shell pipes always escalate to the human.
+# egress-to-shell pipes always escalate to the human. ``shell-privileged`` is
+# included so any sudo-bearing shape (e.g. ``sudo rm /etc/passwd``) escalates
+# regardless of how many safe labels it has accumulated — the normalizer
+# returns this scope for every command matching \bsudo\b.
 DEFAULT_PRIVILEGED_SCOPES: frozenset[str] = frozenset(
     {
         "fs-destructive",
         "vcs-destructive",
         "network-egress-pipe",
+        "shell-privileged",
     }
 )
 
