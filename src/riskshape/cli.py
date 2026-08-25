@@ -116,11 +116,13 @@ def init(force: bool) -> None:
     """Create ~/.riskshape/ledger.db, seed the default-allow corpus, print the hook snippet."""
     cfg = Config.load()
     ledger = _ledger_for(cfg)
-    already = ledger.is_initialized()
     ledger.init_schema()
     if force or not _has_seed(ledger):
-        if already and not force:
-            pass
+        if force:
+            # --force REPLACES the corpus (reset) rather than stacking seed
+            # labels on top of operator labels — appending would dilute an
+            # operator-marked-unsafe shape back to auto_approve.
+            ledger.reset()
         n = seed(ledger)
         _print_banner(ledger, n)
     else:

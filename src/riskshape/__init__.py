@@ -9,7 +9,7 @@ from .ledger import Ledger
 from .grader import Grader, Decision, Outcome, RiskGrade
 from .config import Config
 
-__version__ = "0.2.0"
+__version__ = "0.4.0"
 __all__ = [
     "ActionShape",
     "normalize",

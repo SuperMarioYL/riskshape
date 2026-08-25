@@ -86,10 +86,18 @@ def _build_stderr(shape: ActionShape, decision: Decision) -> str:
 
 
 def evaluate(payload: dict[str, Any], grader: Grader | None = None) -> HookResult:
-    """Evaluate a PreToolUse payload and return a HookResult (no I/O)."""
+    """Evaluate a PreToolUse payload and return a HookResult (no stream I/O).
+
+    When no ``grader`` is supplied (the live hook path) the default ledger is
+    schema-initialized here — mirroring ``mcp_server._ledger`` — so a
+    cold/unconfigured ledger (no db file, no labels table) does not crash the
+    hook with OperationalError. Transient errors init_schema cannot fix
+    (corrupt db, permission denied) are caught in ``run_pretooluse``.
+    """
     shape = normalize_from_hook_payload(payload)
     if grader is None:
         ledger = Ledger(Config.load().db_path)
+        ledger.init_schema()
         grader = Grader(ledger)
     decision = grader.decide(shape)
     payload_outcome = (
@@ -130,7 +138,32 @@ def run_pretooluse(
         stderr.write("[riskshape] hook payload is not a JSON object — skipping\n")
         return 0
 
-    result = evaluate(payload)
+    try:
+        result = evaluate(payload)
+    except Exception as exc:
+        # A ledger problem init_schema could not fix (corrupt db, permission
+        # denied, disk full) must NEVER hard-deny — escalation is ``ask``, not
+        # deny. Fail OPEN to PERM_ASK with a stderr note so the operator still
+        # sees the tool fire instead of every tool being blocked.
+        stderr.write(f"[riskshape] ledger unavailable, escalating: {exc}\n")
+        stdout.write(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "permissionDecision": PERM_ASK,
+                        "permissionDecisionReason": (
+                            f"RiskShape: ledger error ({type(exc).__name__}), "
+                            "escalating to human"
+                        ),
+                    }
+                },
+                separators=(",", ":"),
+            )
+            + "\n"
+        )
+        stdout.flush()
+        return 0
     stdout.write(result.json_payload + "\n")
     stdout.flush()
     stderr.write(result.stderr_line + "\n")

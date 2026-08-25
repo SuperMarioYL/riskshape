@@ -72,7 +72,15 @@ _RM_RECURSIVE_LONG = re.compile(r"\brm\s+(?:\S+\s+)*--recursive\b")
 _GIT_PUSH_FORCE = re.compile(
     r"\bgit\s+push\s+(?:.+\s)?(?:--force|-f\b|--force-with-lease|\+\w)"
 )
-_PIPE_TO_SHELL = re.compile(r"\|\s*(?:bash|sh|zsh|dash|ksh)\b")
+# Pipe to a shell interpreter — the curl|bash one-liner. The shell name need
+# not sit immediately after `|`: real one-liners put an absolute path
+# (`curl x | /bin/bash`), an env/exec/command/sudo prefix (`| sudo bash`,
+# `| env bash`, `| /usr/bin/env bash`), or both between the pipe and the
+# interpreter. All of those forms must escalate as network-egress-pipe
+# (privileged) — a curl|bash ALWAYS escalates, even at grade 1.0.
+_PIPE_TO_SHELL = re.compile(
+    r"\|\s*(?:/[\w/.-]*)?\s*(?:(?:env|exec|command|sudo)\s+)*(?:bash|sh|zsh|dash|ksh)\b"
+)
 _CURL_WGET = re.compile(r"\b(?:curl|wget)\b")
 # dd writing to a block device via of= (with OR without if=) is destructive, as
 # is dd reading from a device (if=), mkfs on any device, and a shell redirect
@@ -250,9 +258,16 @@ def parse_argv_signature(argv: list[str]) -> tuple[str, dict]:
     if not argv:
         return "Bash", {"command": ""}
     joined = " ".join(argv)
-    # Heuristic: if it looks like a shell command (has spaces or shell tokens)
-    # treat as Bash command; else treat as a file path for fs tools.
-    if any(tok in joined for tok in (" ", "|", "&&", ";", "$", "--", "-")) or len(argv) > 1:
+    # Heuristic: if it looks like a shell command (has spaces or shell tokens,
+    # or starts with a flag like -rf/--force) treat as Bash command; else treat
+    # as a file path for fs tools. Note: a hyphenated FILENAME (my-file.txt)
+    # does not start with "-", so it reads as a Read shape — using "-" in joined
+    # (substring) here misclassified every hyphenated filename as a Bash shape.
+    if (
+        any(tok in joined for tok in (" ", "|", "&&", ";", "$"))
+        or joined.startswith("-")
+        or len(argv) > 1
+    ):
         return "Bash", {"command": joined}
     return "Read", {"file_path": joined}
 
