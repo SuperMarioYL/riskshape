@@ -1,6 +1,7 @@
 {
   "schema": 1,
   "name": "riskshape",
+  "content_version": "0.5.0",
   "github": "https://github.com/SuperMarioYL/riskshape",
   "host": "riskshape.lei6393.com",
   "lang": { "primary": "zh", "toggle": true },

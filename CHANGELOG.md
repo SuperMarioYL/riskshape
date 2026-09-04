@@ -5,6 +5,36 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-04
+
+### Fixed
+
+Two fixes closing a version-drift gap and a remote-code-execution bypass that
+let a destructive / irreversible shape escape escalation to the human,
+breaking the compliance invariant that such shapes ALWAYS escalate, even at
+grade 1.0.
+
+- **`web/site.json` had no `content_version` field**: the live Pages site
+  carried no version surface at all (the site was last refreshed at v0.2.0)
+  while `VERSION`, `__version__`, `pyproject.toml`, `riskshape --version`,
+  and the CHANGELOG head all read 0.4.0. A `content_version` key (bare
+  `0.5.0`, matching the `VERSION` file format) was added and a
+  single-source-of-truth lockstep test (`tests/test_version.py`) now asserts
+  all five version surfaces agree — it FAILS on the v0.4.0 tag where
+  `content_version` was absent, proving the drift was real.
+- **`curl|python3`, `curl|ruby`, `curl|node`, `curl|perl`**: the
+  `_PIPE_TO_SHELL` detector now matches non-shell script interpreters
+  (`python`/`python3`/`ruby`/`node`/`perl`, with the same optional absolute
+  path and `env`/`exec`/`command`/`sudo` prefix handling the shell branch
+  already had), not only `bash`/`sh`/`zsh`/`dash`/`ksh`. Piping a remote fetch
+  to any interpreter that executes it runs arbitrary remote code, the same
+  irreversibility as `curl|bash`, so these forms now classify as
+  `network-egress-pipe` (privileged) and escalate regardless of accumulated
+  safe labels. Previously they fell through to the non-privileged
+  `network-egress` scope and auto-approved after 3 safe labels, breaking the
+  invariant that a `curl|<interpreter>` ALWAYS escalates. Regression tests
+  in `tests/test_v050.py`.
+
 ## [0.4.0] - 2026-08-25
 
 ### Fixed

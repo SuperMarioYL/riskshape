@@ -72,14 +72,17 @@ _RM_RECURSIVE_LONG = re.compile(r"\brm\s+(?:\S+\s+)*--recursive\b")
 _GIT_PUSH_FORCE = re.compile(
     r"\bgit\s+push\s+(?:.+\s)?(?:--force|-f\b|--force-with-lease|\+\w)"
 )
-# Pipe to a shell interpreter — the curl|bash one-liner. The shell name need
-# not sit immediately after `|`: real one-liners put an absolute path
-# (`curl x | /bin/bash`), an env/exec/command/sudo prefix (`| sudo bash`,
-# `| env bash`, `| /usr/bin/env bash`), or both between the pipe and the
-# interpreter. All of those forms must escalate as network-egress-pipe
-# (privileged) — a curl|bash ALWAYS escalates, even at grade 1.0.
+# Pipe to a script interpreter — the curl|bash one-liner and its non-shell
+# cousins (curl|python3, curl|ruby, curl|node, curl|perl). Piping a remote
+# fetch to ANY interpreter that executes it (a shell OR a script runtime) runs
+# arbitrary remote code, so all of these forms must escalate as
+# network-egress-pipe (privileged) — a curl|<interpreter> ALWAYS escalates,
+# even at grade 1.0. The interpreter name need not sit immediately after `|`:
+# real one-liners put an absolute path (`curl x | /bin/bash`, `| /usr/bin/python3`),
+# an env/exec/command/sudo prefix (`| sudo bash`, `| env python3`,
+# `| /usr/bin/env ruby`), or both between the pipe and the interpreter.
 _PIPE_TO_SHELL = re.compile(
-    r"\|\s*(?:/[\w/.-]*)?\s*(?:(?:env|exec|command|sudo)\s+)*(?:bash|sh|zsh|dash|ksh)\b"
+    r"\|\s*(?:/[\w/.-]*)?\s*(?:(?:env|exec|command|sudo)\s+)*(?:bash|sh|zsh|dash|ksh|python3?|ruby|node|perl)\b"
 )
 _CURL_WGET = re.compile(r"\b(?:curl|wget)\b")
 # dd writing to a block device via of= (with OR without if=) is destructive, as
@@ -131,7 +134,8 @@ def _derive_bash_capability(command: str) -> str:
     compliance mode never auto-promotes:
       - fs-destructive: rm -rf, dd, mkfs, chmod -R on system paths
       - vcs-destructive: git push --force / +refspec
-      - network-egress-pipe: curl/wget piped to a shell
+      - network-egress-pipe: curl/wget piped to a shell or script interpreter
+        (bash/sh/python3/ruby/node/perl ...)
       - shell-privileged: any sudo-bearing command
 
     Non-privileged scopes (escalate-when-novel, auto-approve-when-safe):
