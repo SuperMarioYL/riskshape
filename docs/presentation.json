@@ -1,0 +1,94 @@
+{
+  "name": "RiskShape",
+  "tagline": "Reuse explicit decisions for repeated agent actions",
+  "architecture": {
+    "title": "Normalize once, grade from an explicit ledger",
+    "nodes": [
+      {
+        "title": "Tool input",
+        "detail": "name and arguments"
+      },
+      {
+        "title": "Normalizer",
+        "detail": "signature and derived scope"
+      },
+      {
+        "title": "SQLite ledger",
+        "detail": "explicit outcome labels"
+      },
+      {
+        "title": "Grader",
+        "detail": "threshold and escalation"
+      },
+      {
+        "title": "Hook / MCP",
+        "detail": "decision and explanation"
+      }
+    ],
+    "edges": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        3
+      ],
+      [
+        3,
+        4
+      ]
+    ]
+  },
+  "process": {
+    "title": "From input to a useful result",
+    "steps": [
+      {
+        "title": "Unseen shape",
+        "detail": "escalate"
+      },
+      {
+        "title": "Add 3 safe labels",
+        "detail": "auto_approve"
+      },
+      {
+        "title": "Add unsafe label",
+        "detail": "ratio falls to 0.75"
+      },
+      {
+        "title": "Check privileged",
+        "detail": "still escalate"
+      }
+    ],
+    "result": "Three safe labels approve the demo shape; one unsafe label returns it to escalation at tau=0.85."
+  },
+  "integrations": {
+    "title": "Supported input and output routes",
+    "items": [
+      {
+        "title": "CLI",
+        "detail": "record / grade / ledger"
+      },
+      {
+        "title": "Claude Code hooks",
+        "detail": "PreToolUse decision JSON"
+      },
+      {
+        "title": "MCP",
+        "detail": "local grading and label tools"
+      },
+      {
+        "title": "SQLite",
+        "detail": "persistent labels"
+      },
+      {
+        "title": "JSON corpus",
+        "detail": "offline convergence replay"
+      }
+    ]
+  }
+}

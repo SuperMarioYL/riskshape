@@ -1,43 +1,215 @@
 {
-  "schema": 1,
-  "name": "riskshape",
+  "schema": 3,
+  "name": "RiskShape",
   "github": "https://github.com/SuperMarioYL/riskshape",
   "host": "riskshape.lei6393.com",
-  "lang": { "primary": "zh", "toggle": true },
-  "accent": ["#0a84ff", "#5e5ce6", "#30d158"],
+  "palette": "auto",
+  "lang": {
+    "primary": "en",
+    "toggle": true
+  },
+  "meta": {
+    "visual_style": "neon-particle",
+    "demo_source": "docs/demo-results.json"
+  },
   "hero": {
-    "eyebrow": { "zh": "少打断 · 会学习 · 本地优先 · 全 agent", "en": "Fewer interrupts · Learns · Local-first · Every agent" },
-    "headline": { "zh": "你的 agent\n不再每一步都打断你", "en": "Your agent\nstops interrupting you every step" },
-    "sub": { "zh": "从你过去标注的决策里学会哪些操作可以安全放行，只在真正陌生的风险上才找你——并把同一份学会的信任带进你用的每一个编码 agent。", "en": "Learns from your past labels which actions are safe to auto-approve, only escalates on genuinely novel risk, and carries that same learned trust into every coding agent you use." },
-    "command": "uvx riskshape init"
+    "headline": {
+      "en": "Reuse explicit decisions for repeated agent actions",
+      "zh": "为重复 Agent 操作复用明确决策"
+    },
+    "sub": {
+      "en": "RiskShape normalizes a tool call into an action shape, looks up recorded safe/unsafe labels in SQLite, and returns auto_approve or escalate according to its configured threshold.",
+      "zh": "RiskShape 将工具调用归一化为操作形状，查询 SQLite 中的 safe/unsafe 标签，再按配置阈值返回 auto_approve 或 escalate。"
+    },
+    "href": "#quickstart"
   },
   "advantages": [
     {
-      "title": { "zh": "第 50 次 npm install，不再问你", "en": "The 50th npm install, no longer asks" },
-      "body": { "zh": "从你的历史标签学会熟悉动作可以安全放行；重复的工具调用自动批准，而且你能用一条命令看见它学会了。", "en": "Learns from your history that familiar actions are safe to auto-approve; repetitive calls flow through on their own — and one command shows you it learned." },
-      "chips": ["› git status / npm install / pytest 预标安全", "› 一条命令看它学会"]
+      "title": {
+        "en": "Inspect the evidence",
+        "zh": "查看历史依据"
+      },
+      "body": {
+        "en": "The grade reports safe/unsafe counts and the reason for its decision.",
+        "zh": "评分列出 safe/unsafe 次数及决策原因。"
+      }
     },
     {
-      "title": { "zh": "只在真正陌生的风险上找你", "en": "Only escalates on genuinely novel risk" },
-      "body": { "zh": "没见过的动作——curl 未知主机再管道给 bash——才上报人工；破坏性命令无论怎么写都照常上报，绝不自动放行。", "en": "Unseen actions — like curl to an unknown host piped to bash — escalate to you; destructive commands escalate no matter how they're written, never auto-approved." },
-      "chips": ["› 破坏性命令怎么写都照常上报", "› 熟悉 = 放行，陌生 = 找你"]
+      "title": {
+        "en": "Keep a sample minimum",
+        "zh": "保留样本门槛"
+      },
+      "body": {
+        "en": "A high label ratio alone does not approve a shape before min_samples is reached.",
+        "zh": "达到 min_samples 前，仅有较高标签比例不会自动批准。"
+      }
     },
     {
-      "title": { "zh": "同一份信任，带进每个 agent", "en": "One learned trust, across every agent" },
-      "body": { "zh": "Cursor、Aider、Claude Code 共享同一份学会的信任——你在哪个工具里积累的标签，都跟着你走。", "en": "Cursor, Aider, and Claude Code share one learned trust — the labels you build in any tool follow you across all of them." },
-      "chips": ["› Cursor / Aider / Claude Code 一处学会", "› 任何 agent 都能查风险分级"]
-    },
-    {
-      "title": { "zh": "本地一个文件，数据不出境", "en": "One local file, data never leaves" },
-      "body": { "zh": "一个进程、一个本地文件、无后台服务。所有标签留在你机器里——这正是企业自托管买家要的那条保证。", "en": "One process, one local file, no backend service. Every label stays on your machine — the guarantee enterprise self-host buyers pay for." },
-      "chips": ["› 单进程 + 本地文件", "› 无账号、无云"]
+      "title": {
+        "en": "Escalate privileged scopes",
+        "zh": "特权范围仍需确认"
+      },
+      "body": {
+        "en": "Recognized destructive, privileged-shell and pipe-to-shell scopes always escalate.",
+        "zh": "识别出的破坏性、特权 Shell 和管道转 Shell 范围始终升级确认。"
+      }
     }
   ],
-  "scene": { "kind": "mesh" },
-  "cta": {
-    "headline": { "zh": "让 agent 学会你信任什么", "en": "Let your agent learn what you trust" },
-    "sub": { "zh": "uvx 即装，本地运行，MIT 开源。", "en": "uvx install, runs locally, MIT open source." },
-    "button": { "zh": "在 GitHub 上看", "en": "See on GitHub" }
+  "demo": {
+    "title": {
+      "en": "Run it on a complete example",
+      "zh": "运行完整示例"
+    },
+    "note": {
+      "en": "The script uses a fresh temporary SQLite ledger, fixed tau/min_samples and explicitly synthetic labels. It grades make build and sudo make build as strings without running them or installing a hook.",
+      "zh": "脚本使用新的临时 SQLite 账本、固定 tau/min_samples 和明确的合成标签。只把 make build、sudo make build 当作字符串评分，不运行命令或安装 Hook。"
+    },
+    "source": "https://github.com/SuperMarioYL/riskshape/blob/main/docs/demo-results.json",
+    "steps": [
+      {
+        "label": "Recorded run",
+        "body": "Isolated SQLite ledger with explicit synthetic outcome labels and production grading; no actions executed or hooks installed.",
+        "command": ".venv/bin/python examples/presentation_demo.py",
+        "output": "{\"stage\": \"unseen\", \"shape\": \"make build\", \"scope\": \"build-install\", \"safe\": 0, \"unsafe\": 0, \"decision\": \"escalate\"}\n{\"stage\": \"three safe labels\", \"shape\": \"make build\", \"scope\": \"build-install\", \"safe\": 3, \"unsafe\": 0, \"decision\": \"auto_approve\"}\n{\"stage\": \"one unsafe label added\", \"shape\": \"make build\", \"scope\": \"build-install\", \"safe\": 3, \"unsafe\": 1, \"decision\": \"escalate\"}\n{\"stage\": \"privileged despite labels\", \"shape\": \"sudo make build\", \"scope\": \"shell-privileged\", \"safe\": 3, \"unsafe\": 0, \"decision\": \"escalate\"}\nScope: empirical label arithmetic; no commands executed or approval hooks installed.",
+        "image": "/assets/presentation/demo-0-light.svg",
+        "imageDark": "/assets/presentation/demo-0-dark.svg"
+      }
+    ]
   },
-  "footer": { "tag": { "zh": "MIT 开源 · 本地优先 · 全 agent", "en": "MIT open source · local-first · every agent" } }
+  "quickstart": {
+    "title": {
+      "en": "Try it locally",
+      "zh": "本地上手"
+    },
+    "body": {
+      "en": "The script uses a fresh temporary SQLite ledger, fixed tau/min_samples and explicitly synthetic labels. It grades make build and sudo make build as strings without running them or installing a hook.",
+      "zh": "脚本使用新的临时 SQLite 账本、固定 tau/min_samples 和明确的合成标签。只把 make build、sudo make build 当作字符串评分，不运行命令或安装 Hook。"
+    },
+    "steps": [
+      {
+        "title": {
+          "en": "Install from source",
+          "zh": "从源码安装"
+        },
+        "code": "git clone https://github.com/SuperMarioYL/riskshape.git\ncd riskshape\nuv venv --python 3.12\nsource .venv/bin/activate\nuv pip install -e ."
+      },
+      {
+        "title": {
+          "en": "Run the included example",
+          "zh": "运行随仓示例"
+        },
+        "code": ".venv/bin/python examples/presentation_demo.py"
+      }
+    ]
+  },
+  "limitations": [
+    {
+      "en": "Matching is based on normalized shape, not semantic equivalence or the current filesystem state.",
+      "zh": "匹配基于归一化形状，不代表语义等价或当前文件系统状态。"
+    },
+    {
+      "en": "Capability detection is heuristic. The privileged-scope rule applies to recognized shapes, not every possible dangerous command.",
+      "zh": "能力检测使用启发式规则；特权规则针对识别出的形状，不能覆盖所有危险命令。"
+    },
+    {
+      "en": "Synthetic label replay does not establish production safety, approval accuracy or compliance certification.",
+      "zh": "合成标签回放不能证明生产安全、批准准确性或合规认证。"
+    }
+  ],
+  "scene": {
+    "kind": "neon-graph",
+    "fallback": "/assets/presentation/scene-dark.svg",
+    "fallbackLight": "/assets/presentation/scene-light.svg"
+  },
+  "story": {
+    "intro": {
+      "title": {
+        "en": "A concrete task",
+        "zh": "从实际任务出发"
+      },
+      "body": {
+        "en": "Repeated permission prompts lose context when each decision starts from scratch. A local ledger makes prior labels visible, but only for the same normalized action shape; new or insufficiently labeled shapes still ask for review.",
+        "zh": "如果每次权限决策都从头开始，重复提示就无法利用历史上下文。本地账本让此前标签可见，但只用于同一归一化操作形状；新形状和标签不足的形状仍需审阅。"
+      }
+    },
+    "sections": [
+      {
+        "title": {
+          "en": "Follow the operation",
+          "zh": "处理过程"
+        },
+        "body": {
+          "en": "shape.py derives a stable signature and capability scope from tool name and input. Ledger records labels and aggregates counts. Grader checks recognized privileged scopes, whether the shape has been seen, sample count and the safe-label fraction. Hook and MCP interfaces reuse that grader rather than maintaining separate rules.",
+          "zh": "shape.py 根据工具名和输入生成稳定签名与能力范围。Ledger 记录标签并汇总次数，Grader 依次检查已识别特权范围、是否见过、样本数量和 safe 标签比例。Hook 和 MCP 接口复用此评分器，不维护另一套规则。"
+        },
+        "image": {
+          "light": "/assets/presentation/process-light.svg",
+          "dark": "/assets/presentation/process-dark.svg",
+          "alt": {
+            "en": "Follow the operation",
+            "zh": "处理过程"
+          }
+        }
+      },
+      {
+        "title": {
+          "en": "Normalize once, grade from an explicit ledger",
+          "zh": "统一归一化，依据显式账本决策"
+        },
+        "body": {
+          "en": "shape.py derives a stable signature and capability scope from tool name and input. Ledger records labels and aggregates counts. Grader checks recognized privileged scopes, whether the shape has been seen, sample count and the safe-label fraction. Hook and MCP interfaces reuse that grader rather than maintaining separate rules.",
+          "zh": "shape.py 根据工具名和输入生成稳定签名与能力范围。Ledger 记录标签并汇总次数，Grader 依次检查已识别特权范围、是否见过、样本数量和 safe 标签比例。Hook 和 MCP 接口复用此评分器，不维护另一套规则。"
+        },
+        "image": {
+          "light": "/assets/presentation/architecture-light.svg",
+          "dark": "/assets/presentation/architecture-dark.svg",
+          "alt": {
+            "en": "Normalize once, grade from an explicit ledger",
+            "zh": "统一归一化，依据显式账本决策"
+          }
+        }
+      },
+      {
+        "title": {
+          "en": "Connect the pieces",
+          "zh": "输入与输出"
+        },
+        "body": {
+          "en": "RiskShape recommends or emits a permission decision where a caller integrates it. It does not execute commands, prove they are safe, or install a sandbox. The safe-label fraction is an empirical property of the ledger, not a calibrated probability of future harm.",
+          "zh": "RiskShape 在调用方接入的位置建议或输出权限决策，不执行命令、不证明命令安全，也不安装沙箱。safe 标签比例是账本经验统计，不是未来风险的校准概率。"
+        },
+        "image": {
+          "light": "/assets/presentation/integrations-light.svg",
+          "dark": "/assets/presentation/integrations-dark.svg",
+          "alt": {
+            "en": "Connect the pieces",
+            "zh": "输入与输出"
+          }
+        }
+      }
+    ],
+    "details": [
+      {
+        "title": {
+          "en": "Configuration",
+          "zh": "配置"
+        },
+        "body": {
+          "en": "RISKSHAPE_DB selects the SQLite path (default ~/.riskshape/ledger.db). RISKSHAPE_TAU defaults to 0.85 and RISKSHAPE_MIN_SAMPLES to 3. The decision requires enough labels and a safe fraction at or above tau, while recognized privileged scopes always escalate. init seeds default shapes; treat these as supplied labels rather than observations of your own commands.",
+          "zh": "RISKSHAPE_DB 指定 SQLite 路径，默认 ~/.riskshape/ledger.db。RISKSHAPE_TAU 默认 0.85，RISKSHAPE_MIN_SAMPLES 默认 3。自动决策要求足够标签且 safe 比例达到 tau，已识别特权范围始终升级确认。init 会加入默认形状种子，应将其视为提供的标签，而非对个人命令的实际观察。"
+        }
+      },
+      {
+        "title": {
+          "en": "Further use",
+          "zh": "进一步使用"
+        },
+        "body": {
+          "en": "grade explains one normalized shape; ledger lists labels and decisions. record --tool Bash \"make build\" safe adds an operator label to the selected database. converge replays its corpus in an isolated database; its default corpus is synthetic. hook-snippet prints integration configuration for inspection. riskshape mcp serve exposes the local MCP interface.",
+          "zh": "grade 解释一个归一化形状，ledger 列出标签和决策。record --tool Bash \"make build\" safe 向所选数据库添加操作员标签。converge 在隔离数据库中回放语料，默认语料为合成数据。hook-snippet 打印供检查的接入配置，riskshape mcp serve 提供本地 MCP 接口。"
+        },
+        "code": ".venv/bin/riskshape grade --tool Bash \"make build\"\n.venv/bin/riskshape ledger\n.venv/bin/riskshape converge --json\n.venv/bin/riskshape hook-snippet"
+      }
+    ]
+  }
 }
