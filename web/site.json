@@ -2,6 +2,7 @@
   "schema": 3,
   "name": "RiskShape",
   "github": "https://github.com/SuperMarioYL/riskshape",
+  "content_version": "0.6.0",
   "host": "riskshape.lei6393.com",
   "palette": "auto",
   "lang": {

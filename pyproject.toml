@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "riskshape"
-version = "0.5.0"
+version = "0.6.0"
 description = "Local action-shape consent ledger with explicit outcome labels, empirical approval rules, privileged-scope escalation, hooks and MCP tools."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,7 +25,7 @@ classifiers = [
 dependencies = [
     "click>=8.1",
     "pydantic>=2.7",
-    "mcp>=1.2",
+    "mcp>=1.2,<2",
 ]
 
 [project.optional-dependencies]

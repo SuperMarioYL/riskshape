@@ -179,29 +179,54 @@ def record(tool, session, note, signature_args, outcome) -> None:
 
 @cli.command()
 @click.option("--tool", "tool", default=None, help="Tool name (defaults to Bash heuristic).")
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON instead of the human-readable table.")
 @click.argument("signature_args", nargs=-1, required=True)
-def grade(tool, signature_args) -> None:
+def grade(tool, as_json, signature_args) -> None:
     """Show the per-shape risk grade + decision for a shape."""
     cfg = Config.load()
     ledger = _ensure_init(cfg)
     grader = Grader(ledger, cfg)
     shape = _shape_from_args(tool, signature_args)
-    grade = grader.grade(shape)
+    risk = grader.grade(shape)
     decision = grader.decide(shape)
+    if as_json:
+        click.echo(json.dumps(_grade_payload(shape, risk, decision, cfg), indent=2))
+        return
     click.echo(f"shape      : {shape.tool_name}:{shape.signature!r}")
     click.echo(f"scope      : {shape.capability_scope}")
     click.echo(f"key        : {shape.key}")
-    click.echo(f"labels     : safe={grade.safe} unsafe={grade.unsafe} total={grade.total} seen={grade.seen}")
-    click.echo(f"P(safe)    : {grade.p_safe:.3f}")
+    click.echo(f"labels     : safe={risk.safe} unsafe={risk.unsafe} total={risk.total} seen={risk.seen}")
+    click.echo(f"P(safe)    : {risk.p_safe:.3f}")
     click.echo(f"tau        : {cfg.tau}   min_samples={cfg.min_samples}")
     click.echo(f"privileged : {cfg.is_privileged(shape.capability_scope)}")
     click.echo(f"decision   : {decision.outcome.value}  —  {decision.reason}")
 
 
+def _grade_payload(shape, risk, decision, cfg) -> dict:
+    return {
+        "shape": str(shape),
+        "tool_name": shape.tool_name,
+        "signature": shape.signature,
+        "key": shape.key,
+        "scope": shape.capability_scope,
+        "safe": risk.safe,
+        "unsafe": risk.unsafe,
+        "total": risk.total,
+        "seen": risk.seen,
+        "p_safe": round(risk.p_safe, 3),
+        "tau": cfg.tau,
+        "min_samples": cfg.min_samples,
+        "privileged": cfg.is_privileged(shape.capability_scope),
+        "decision": decision.outcome.value,
+        "reason": decision.reason,
+    }
+
+
 @cli.command(name="ledger")
 @click.argument("subcommand", required=False, default="list")
 @click.option("--limit", default=200, help="Max labels for the 'labels' subcommand.")
-def ledger_cmd(subcommand, limit) -> None:
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON instead of the human-readable table.")
+def ledger_cmd(subcommand, limit, as_json) -> None:
     """List accumulated labels + per-shape grades.
 
   riskshape ledger            # shapes + grades + decisions
@@ -215,6 +240,26 @@ def ledger_cmd(subcommand, limit) -> None:
     grader = Grader(ledger, cfg)
     if subcommand == "labels":
         rows = ledger.list_labels(limit=limit)
+        if as_json:
+            click.echo(
+                json.dumps(
+                    [
+                        {
+                            "id": r.id,
+                            "outcome": r.outcome,
+                            "tool_name": r.tool_name,
+                            "signature": r.signature,
+                            "capability": r.capability,
+                            "session_id": r.session_id,
+                            "designated_at": r.designated_at,
+                            "note": r.note,
+                        }
+                        for r in rows
+                    ],
+                    indent=2,
+                )
+            )
+            return
         click.echo(f"{'id':<5} {'outcome':<7} {'tool':<10} {'signature':<40} {'scope':<20} {'at':<26}")
         for r in rows:
             sig = r.signature or "(empty)"
@@ -227,6 +272,28 @@ def ledger_cmd(subcommand, limit) -> None:
     if not shapes:
         click.echo("Ledger is empty. Run: riskshape init")
         return
+    if as_json:
+        rows = []
+        for s in shapes:
+            shape = ActionShape(s.tool_name, s.signature, s.capability)
+            d = grader.decide(shape)
+            rows.append(
+                {
+                    "tool_name": s.tool_name,
+                    "signature": s.signature,
+                    "key": s.shape_key,
+                    "scope": s.capability,
+                    "safe": s.safe,
+                    "unsafe": s.unsafe,
+                    "total": s.total,
+                    "p_safe": round(s.p_safe, 3),
+                    "privileged": cfg.is_privileged(s.capability),
+                    "decision": d.outcome.value,
+                    "reason": d.reason,
+                }
+            )
+        click.echo(json.dumps({"tau": cfg.tau, "min_samples": cfg.min_samples, "db": cfg.db_path, "shapes": rows}, indent=2))
+        return
     click.echo(click.style("RiskShape ledger", bold=True) + f"  —  {len(shapes)} shape(s)")
     click.echo(f"  tau={cfg.tau}  min_samples={cfg.min_samples}  db={cfg.db_path}")
     click.echo("")
@@ -237,9 +304,13 @@ def ledger_cmd(subcommand, limit) -> None:
 
 
 @cli.command()
-@click.option("--pretty/--json", "pretty", default=None, help="Force human/JSON output.")
-def check(pretty) -> None:
-    """PreToolUse hook entry. Reads one JSON payload from stdin."""
+def check() -> None:
+    """PreToolUse hook entry. Reads one JSON payload from stdin.
+
+    The stdout hook protocol is fixed (Claude Code reads it), so there is no
+    output-format flag here — machine-readable inspection lives in
+    ``grade --json`` / ``ledger --json`` / ``stats --json``.
+    """
     sys.exit(run_pretooluse())
 
 
@@ -294,7 +365,8 @@ def serve() -> None:
 
 
 @cli.command()
-def stats() -> None:
+@click.option("--json", "as_json", is_flag=True, default=False, help="Emit machine-readable JSON instead of the human-readable summary.")
+def stats(as_json) -> None:
     """Quick ledger statistics."""
     cfg = Config.load()
     ledger = _ledger_for(cfg)
@@ -313,6 +385,19 @@ def stats() -> None:
             auto += 1
         else:
             escalate += 1
+    if as_json:
+        click.echo(
+            json.dumps(
+                {
+                    "shapes": len(shapes),
+                    "labels": {"safe": total_safe, "unsafe": total_unsafe, "total": total_safe + total_unsafe},
+                    "decisions": {"auto_approve": auto, "escalate": escalate},
+                    "db": cfg.db_path,
+                },
+                indent=2,
+            )
+        )
+        return
     click.echo(f"shapes     : {len(shapes)}")
     click.echo(f"labels     : safe={total_safe}  unsafe={total_unsafe}  total={total_safe + total_unsafe}")
     click.echo(f"decisions  : auto_approve={auto}  escalate={escalate}")

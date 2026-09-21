@@ -5,6 +5,43 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-22
+
+### Fixed
+
+Four fixes: an unbounded dependency that broke every fresh install, the
+v0.5.0 privileged-pipe detector and version lockstep that the post-ship site
+refresh on main never received (main forked before v0.5.0 and shipped 0.4.0
+surfaces alongside the v0.5.0 release), and a dead `--json` flag on `check`
+plus the machine-readable inspection output the CLI implied but never had.
+
+- **`mcp` pinned to `>=1.2,<2`**: the constraint had no upper bound, so fresh
+  `pip install -e .` resolved mcp 2.2.0, which removed `mcp.server.fastmcp`
+  (FastMCP became MCPServer in 2.x) — `riskshape mcp serve` crashed on import
+  and the `ci` workflow was red on all three Python legs (reproduced locally
+  with mcp 2.2.0; the failure is `ModuleNotFoundError` at
+  `src/riskshape/mcp_server.py:122`). The pin is the SDK's own recommended
+  remedy for v1 code.
+- **`curl|python3` / `curl|ruby` / `curl|node` / `curl|perl` privileged again
+  on main**: main's site-refresh line was authored from the pre-v0.5.0 fork
+  point, so `_PIPE_TO_SHELL` had regressed to matching only shell
+  interpreters — `curl x.sh | python3` classified as non-privileged
+  `network-egress` and would auto-approve after 3 safe labels. The merged
+  main now carries the broadened v0.5.0 detector, and its regression tests
+  (`tests/test_v050.py`) ship again.
+- **Version lockstep restored at 0.6.0**: main read 0.4.0 on every version
+  surface while release v0.5.0 was published, the lockstep test
+  (`tests/test_version.py`) was deleted, and the schema-3 `web/site.json`
+  rewrite dropped `content_version` entirely. `VERSION`, `pyproject.toml`,
+  `__version__`, the CHANGELOG head, the CLI `--version` output, and a
+  re-added `web/site.json` `content_version` all read `0.6.0`, with the
+  lockstep test restored to enforce it.
+- **CLI machine-readable output is real**: `riskshape check` declared a
+  `--pretty/--json` flag the handler silently ignored (the hook stdout
+  protocol is fixed, so the dead flag is removed). `grade --json`,
+  `ledger --json` (shapes and labels), and `stats --json` now emit the same
+  data as the human tables as JSON. Regression tests in `tests/test_v060.py`.
+
 ## [0.5.0] - 2026-09-04
 
 ### Fixed
