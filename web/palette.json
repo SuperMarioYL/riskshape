@@ -1,0 +1,38 @@
+{
+  "mode": "auto",
+  "id": "c0e656-83e76a-f6eeac-7c8fa9024163",
+  "identity": "https://github.com/supermarioyl/riskshape",
+  "primary": "#c0e656",
+  "secondary": "#83e76a",
+  "highlight": "#f6eeac",
+  "dark": {
+    "bg": "#090c0d",
+    "panel": "#111717",
+    "code": "#111713",
+    "ink": "#fdfcee",
+    "muted": "#aab9a8",
+    "line": "#313c1d",
+    "primary": "#c0e656",
+    "secondary": "#83e76a",
+    "highlight": "#f6eeac",
+    "accent": "#c0e656",
+    "buttonStart": "#6a7e2f",
+    "buttonEnd": "#4b843c",
+    "buttonText": "#ffffff"
+  },
+  "light": {
+    "bg": "#fdfef9",
+    "panel": "#fcfef7",
+    "code": "#fbfdf3",
+    "ink": "#222a1c",
+    "muted": "#697969",
+    "line": "#ecf7cb",
+    "primary": "#687c2f",
+    "secondary": "#49823b",
+    "highlight": "#797655",
+    "accent": "#687c2f",
+    "buttonStart": "#6a7e2f",
+    "buttonEnd": "#4b843c",
+    "buttonText": "#ffffff"
+  }
+}

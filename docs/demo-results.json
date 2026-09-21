@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "source_revision": "758533b49a61419e969eb86608fbcc4dac5bd9fc",
+  "scope": "Isolated SQLite ledger with explicit synthetic outcome labels and production grading; no actions executed or hooks installed.",
+  "steps": [
+    {
+      "label": "Recorded run",
+      "body": "Isolated SQLite ledger with explicit synthetic outcome labels and production grading; no actions executed or hooks installed.",
+      "command": ".venv/bin/python examples/presentation_demo.py",
+      "output": "{\"stage\": \"unseen\", \"shape\": \"make build\", \"scope\": \"build-install\", \"safe\": 0, \"unsafe\": 0, \"decision\": \"escalate\"}\n{\"stage\": \"three safe labels\", \"shape\": \"make build\", \"scope\": \"build-install\", \"safe\": 3, \"unsafe\": 0, \"decision\": \"auto_approve\"}\n{\"stage\": \"one unsafe label added\", \"shape\": \"make build\", \"scope\": \"build-install\", \"safe\": 3, \"unsafe\": 1, \"decision\": \"escalate\"}\n{\"stage\": \"privileged despite labels\", \"shape\": \"sudo make build\", \"scope\": \"shell-privileged\", \"safe\": 3, \"unsafe\": 0, \"decision\": \"escalate\"}\nScope: empirical label arithmetic; no commands executed or approval hooks installed."
+    }
+  ]
+}
