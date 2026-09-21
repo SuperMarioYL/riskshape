@@ -1,16 +1,17 @@
-name: pages
+# Deploy product site via web-factory
+name: Deploy site
+
 on:
   push:
-    branches: ["main"]
-    paths: ['web/**', '.github/workflows/pages.yml']
+    branches: [main]
+    paths: ['web/**']
   workflow_dispatch:
+
 permissions:
   contents: read
   pages: write
   id-token: write
-concurrency:
-  group: pages
-  cancel-in-progress: false
+
 jobs:
   site:
     uses: SuperMarioYL/web-factory/.github/workflows/build-site.yml@03e7ec8a416f868b847d13b3023bf7d1215db767

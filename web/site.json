@@ -218,10 +218,10 @@
           "zh": "进一步使用"
         },
         "body": {
-          "en": "grade explains one normalized shape; ledger lists labels and decisions. record --tool Bash \"make build\" safe adds an operator label to the selected database. converge replays its corpus in an isolated database; its default corpus is synthetic. hook-snippet prints integration configuration for inspection. riskshape mcp serve exposes the local MCP interface.",
-          "zh": "grade 解释一个归一化形状，ledger 列出标签和决策。record --tool Bash \"make build\" safe 向所选数据库添加操作员标签。converge 在隔离数据库中回放语料，默认语料为合成数据。hook-snippet 打印供检查的接入配置，riskshape mcp serve 提供本地 MCP 接口。"
+          "en": "grade explains one normalized shape; ledger lists labels and decisions; stats summarizes the ledger. Since v0.6.0 each supports --json for machine-readable output. record --tool Bash \"make build\" safe adds an operator label to the selected database. converge replays its corpus in an isolated database; its default corpus is synthetic. hook-snippet prints integration configuration for inspection. riskshape mcp serve exposes the local MCP interface.",
+          "zh": "grade 解释一个归一化形状，ledger 列出标签和决策，stats 汇总账本；自 v0.6.0 起三者都支持 --json 机器可读输出。record --tool Bash \"make build\" safe 向所选数据库添加操作员标签。converge 在隔离数据库中回放语料，默认语料为合成数据。hook-snippet 打印供检查的接入配置，riskshape mcp serve 提供本地 MCP 接口。"
         },
-        "code": ".venv/bin/riskshape grade --tool Bash \"make build\"\n.venv/bin/riskshape ledger\n.venv/bin/riskshape converge --json\n.venv/bin/riskshape hook-snippet"
+        "code": ".venv/bin/riskshape grade --tool Bash \"make build\"\n.venv/bin/riskshape grade --json --tool Bash \"make build\"\n.venv/bin/riskshape ledger\n.venv/bin/riskshape stats --json\n.venv/bin/riskshape hook-snippet"
       }
     ]
   }
