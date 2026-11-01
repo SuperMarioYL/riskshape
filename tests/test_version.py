@@ -2,6 +2,7 @@
 
 Asserts the canonical version (the VERSION file) equals:
   - ``riskshape.__version__`` (src/riskshape/__init__.py)
+  - ``pyproject.toml`` ``[project] version`` (what pip/uv installs report)
   - ``web/site.json`` ``content_version``
   - the head ``## [x.y.z]`` version in CHANGELOG.md
   - the ``riskshape --version`` CLI output
@@ -10,7 +11,9 @@ A drift between any two surfaces is the dominant version-bug class. On the
 shipped v0.4.0 tag ``web/site.json`` carried NO ``content_version`` field at
 all (the site was last refreshed at v0.2.0), so the site.json assertion here
 would have FAILED — proving the drift was real rather than cosmetic. The
-v0.5.0 fix adds ``content_version`` and this test keeps it in lockstep.
+v0.5.0 fix adds ``content_version`` and this test keeps it in lockstep; v0.7.0
+adds the install surface (pyproject.toml), which no test read before, so a
+built wheel could carry a version every other surface disagreed with.
 """
 
 from __future__ import annotations
@@ -40,6 +43,13 @@ def _site_content_version() -> str:
     return str(site.get("content_version", ""))
 
 
+def _pyproject_version() -> str:
+    text = (_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    m = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
+    assert m, "no [project] version in pyproject.toml"
+    return m.group(1)
+
+
 def _changelog_head_version() -> str:
     text = (_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     m = re.search(r"##\s*\[([0-9.]+)\]", text)
@@ -61,6 +71,7 @@ def test_version_lockstep():
     surfaces = {
         "VERSION file": canonical,
         "__version__": _init_version(),
+        "pyproject.toml version": _pyproject_version(),
         "site.json content_version": _site_content_version(),
         "CHANGELOG head": _changelog_head_version(),
         "CLI --version": _cli_version(),

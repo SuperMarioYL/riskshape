@@ -29,6 +29,26 @@ _NOTE_TOOLS = frozenset({"notebookedit", "NotebookEdit", "notebook_edit"})
 _GLOB_TOOLS = frozenset({"glob", "Glob", "list_files"})
 _GREP_TOOLS = frozenset({"grep", "Grep", "ripgrep"})
 
+# Lower-cased names for the case-insensitive family lookups below.
+_BASH_NAMES = frozenset(t.lower() for t in _BASH_TOOLS)
+_EDIT_NAMES = frozenset(t.lower() for t in _EDIT_TOOLS)
+_WRITE_NAMES = frozenset(t.lower() for t in _WRITE_TOOLS)
+_READ_NAMES = frozenset(t.lower() for t in _READ_TOOLS)
+_NOTE_NAMES = frozenset(t.lower() for t in _NOTE_TOOLS)
+_GLOB_NAMES = frozenset(t.lower() for t in _GLOB_TOOLS)
+_GREP_NAMES = frozenset(t.lower() for t in _GREP_TOOLS)
+
+# Which tool_input key each family's signature lives in. ``riskshape record``
+# receives one positional signature string, so it must rebuild the same
+# tool_input the agent sends — a different key means a different shape key and
+# the label never reaches the action it describes.
+_FAMILY_SIGNATURE_PARAM: tuple[tuple[frozenset[str], str], ...] = (
+    (_BASH_NAMES, "command"),
+    (_EDIT_NAMES | _WRITE_NAMES | _READ_NAMES, "file_path"),
+    (_NOTE_NAMES, "notebook_path"),
+    (_GLOB_NAMES | _GREP_NAMES, "pattern"),
+)
+
 
 @dataclass(frozen=True)
 class ActionShape:
@@ -85,6 +105,16 @@ _PIPE_TO_SHELL = re.compile(
     r"\|\s*(?:/[\w/.-]*)?\s*(?:(?:env|exec|command|sudo)\s+)*(?:bash|sh|zsh|dash|ksh|python3?|ruby|node|perl)\b"
 )
 _CURL_WGET = re.compile(r"\b(?:curl|wget)\b")
+# A remote fetch captured by command substitution (`$(curl ...)` or
+# `` `curl ...` ``) or process substitution (`<(curl ...)`) is handed to whatever
+# runs the substitution — `bash -c "$(curl ...)"`, `bash <(curl ...)`,
+# `source <(curl ...)`. No literal pipe appears, so _PIPE_TO_SHELL misses it and
+# the command would fall through to the non-privileged "network-egress" scope.
+# Output substitution (`>(...)`) is deliberately not matched: it writes TO the
+# fetcher, so it does not execute the fetched bytes.
+_FETCH_IN_SUBSTITUTION = re.compile(
+    r"(?:\$\(|<\(|`)[^()\n`]*\b(?:curl|wget)\b"
+)
 # dd writing to a block device via of= (with OR without if=) is destructive, as
 # is dd reading from a device (if=), mkfs on any device, and a shell redirect
 # onto /dev/sd*. The `of=/dev/` branch closes the bypass where `dd of=/dev/sda`
@@ -149,6 +179,11 @@ def _derive_bash_capability(command: str) -> str:
         return "vcs-destructive"
     if _PIPE_TO_SHELL.search(command) and _CURL_WGET.search(command):
         return "network-egress-pipe"
+    if _FETCH_IN_SUBSTITUTION.search(command):
+        # Remote bytes injected into the command via $(...) / <(...) / `...`
+        # are executed by the surrounding interpreter — same irreversibility as
+        # a literal pipe.
+        return "network-egress-pipe"
     if _DD_MKFS.search(command):
         return "fs-destructive"
     if _CHMOD_RECURSIVE.search(command):
@@ -210,30 +245,30 @@ def normalize(tool_name: str, tool_input: dict[str, Any] | None) -> ActionShape:
     name = (tool_name or "").strip()
     low = name.lower()
 
-    if low in {t.lower() for t in _BASH_TOOLS}:
+    if low in _BASH_NAMES:
         command = str(tool_input.get("command") or tool_input.get("cmd") or "")
         sig = _normalize_bash_command(command)
         cap = _derive_bash_capability(sig)
         return ActionShape(tool_name="Bash", signature=sig, capability_scope=cap)
 
-    if low in {t.lower() for t in _EDIT_TOOLS}:
+    if low in _EDIT_NAMES:
         sig = _signature_for_fs_tool(tool_input)
         return ActionShape(tool_name="Edit", signature=sig, capability_scope="fs-write")
-    if low in {t.lower() for t in _WRITE_TOOLS}:
+    if low in _WRITE_NAMES:
         sig = _signature_for_fs_tool(tool_input)
         return ActionShape(tool_name="Write", signature=sig, capability_scope="fs-write")
-    if low in {t.lower() for t in _READ_TOOLS}:
+    if low in _READ_NAMES:
         sig = _signature_for_fs_tool(tool_input)
         return ActionShape(tool_name="Read", signature=sig, capability_scope="fs-read")
-    if low in {t.lower() for t in _NOTE_TOOLS}:
+    if low in _NOTE_NAMES:
         sig = _signature_for_fs_tool(tool_input, key="notebook_path")
         return ActionShape(
             tool_name="NotebookEdit", signature=sig, capability_scope="fs-write"
         )
-    if low in {t.lower() for t in _GLOB_TOOLS}:
+    if low in _GLOB_NAMES:
         sig = _signature_for_search_tool(tool_input)
         return ActionShape(tool_name="Glob", signature=sig, capability_scope="fs-read")
-    if low in {t.lower() for t in _GREP_TOOLS}:
+    if low in _GREP_NAMES:
         sig = _signature_for_search_tool(tool_input)
         return ActionShape(tool_name="Grep", signature=sig, capability_scope="fs-read")
 
@@ -249,6 +284,21 @@ def normalize_from_hook_payload(payload: dict[str, Any]) -> ActionShape:
     if not isinstance(tool_input, dict):
         tool_input = {"value": tool_input}
     return normalize(tool_name, tool_input)
+
+
+def tool_input_from_signature(tool_name: str, signature: str) -> dict[str, Any]:
+    """Rebuild the tool_input a one-string CLI signature stands for.
+
+    ``riskshape record`` and ``riskshape grade`` receive a single positional
+    signature, but the normalizer reads a different parameter per tool family.
+    This returns the same key the agent's payload would carry so the CLI and the
+    hook resolve to one shape key.
+    """
+    low = (tool_name or "").strip().lower()
+    for names, param in _FAMILY_SIGNATURE_PARAM:
+        if low in names:
+            return {param: signature}
+    return {"value": signature} if signature else {}
 
 
 def parse_argv_signature(argv: list[str]) -> tuple[str, dict]:
@@ -281,4 +331,5 @@ __all__ = [
     "normalize",
     "normalize_from_hook_payload",
     "parse_argv_signature",
+    "tool_input_from_signature",
 ]

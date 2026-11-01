@@ -41,17 +41,37 @@ class CorpusAction:
         return normalize(self.tool_name, self.tool_input)
 
 
+class CorpusError(ValueError):
+    """A user-supplied corpus cannot be replayed (unreadable, unparseable, malformed)."""
+
+
 def load_corpus(path: str | Path) -> list[CorpusAction]:
-    """Load a JSON corpus (list of {tool_name, tool_input, outcome})."""
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    """Load a JSON corpus (list of {tool_name, tool_input, outcome}).
+
+    Raises :class:`CorpusError` for anything a caller cannot fix by retrying —
+    the CLI turns it into a one-line usage error instead of a traceback.
+    """
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise CorpusError(f"cannot read corpus {path}: {exc}") from exc
+    except ValueError as exc:
+        raise CorpusError(f"corpus {path} is not valid JSON: {exc}") from exc
     if not isinstance(data, list):
-        raise ValueError(f"corpus must be a JSON list, got {type(data).__name__}")
+        raise CorpusError(
+            f"corpus {path} must be a JSON list, got {type(data).__name__}"
+        )
     out: list[CorpusAction] = []
-    for row in data:
+    for i, row in enumerate(data):
+        if not isinstance(row, dict):
+            raise CorpusError(f"corpus {path} row {i} is not a JSON object")
+        tool_input = row.get("tool_input") or row.get("input") or {}
+        if not isinstance(tool_input, dict):
+            raise CorpusError(f"corpus {path} row {i}: tool_input must be a JSON object")
         out.append(
             CorpusAction(
                 tool_name=str(row.get("tool_name") or row.get("tool") or "Unknown"),
-                tool_input=row.get("tool_input") or row.get("input") or {},
+                tool_input=tool_input,
                 outcome=str(row.get("outcome") or row.get("label") or "").strip(),
             )
         )
@@ -211,6 +231,7 @@ def format_report(rep: dict[str, Any]) -> str:
 
 __all__ = [
     "CorpusAction",
+    "CorpusError",
     "load_corpus",
     "synthetic_corpus",
     "converge_report",

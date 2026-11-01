@@ -5,6 +5,49 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-11-02
+
+### Fixed
+
+Four fixes to shipped behaviour, all reproduced against v0.6.0, plus the
+version guard the install surface was missing.
+
+- **Labels for Glob / Grep / notebook edits attach to the real shape**:
+  `riskshape record --tool Glob "**/*.py" safe` — the exact command the
+  PostToolUse hook prints for every tool — rebuilt `{"value": ...}`, but the
+  normalizer reads `pattern` for Glob/Grep and `notebook_path` for
+  NotebookEdit. Every one of those labels landed on a `Glob:''` /
+  `Grep:''` / `NotebookEdit:''` shape that no agent action ever matches, so
+  `ledger` auto-approved a phantom `(empty)` shape while `check` kept
+  escalating the real action as unseen. Which parameter each tool family reads
+  now lives in one place in `shape.py` and the CLI calls it.
+- **`converge --corpus` reports bad input instead of a traceback**: an
+  unparseable file, a non-list document, a non-object row and a non-object
+  `tool_input` each escaped as `json.JSONDecodeError` / `ValueError` /
+  `AttributeError` with exit 1 (e.g. `AttributeError: 'str' object has no
+  attribute 'get'`). They now raise one corpus error that the CLI maps to its
+  normal usage-error contract: a one-line `Error:` on stderr and exit 2.
+- **`--json` inspection output is always JSON**: for an uninitialized ledger
+  `ledger --json` printed `Ledger not initialized...` on stdout with exit 1,
+  `stats --json` printed the same sentence with exit 0, and an initialized but
+  empty ledger printed `Ledger is empty...` instead of JSON. Stdout now always
+  carries one JSON document (empty shapes / zero totals), the hint goes to
+  stderr, and both commands exit 1 when uninitialized and 0 when empty.
+- **Remote fetches inside substitutions are privileged**: `bash -c "$(curl
+  ...)"`, `sh -c "$(wget ...)"`, `bash <(curl ...)`, `source <(curl ...)` and
+  their backtick form classified as non-privileged `network-egress`, so three
+  safe labels could auto-approve a remote-code-execution shape. A fetch inside
+  `$(...)`, `<(...)` or backticks now classifies as `network-egress-pipe` and
+  always escalates, completing the invariant the v0.4.0 and v0.5.0 fixes
+  established for literal pipes.
+
+### Quality
+
+- **`pyproject.toml` joins the version lockstep test**: the sixth version
+  surface — what `pip install -e .`, the built wheel and CI report — was not
+  covered, so a wheel could ship a different version than VERSION,
+  `__version__`, `site.json`, the CHANGELOG head and `--version`.
+
 ## [0.6.0] - 2026-09-22
 
 ### Fixed

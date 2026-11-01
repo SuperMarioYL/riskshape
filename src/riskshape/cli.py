@@ -22,7 +22,7 @@ import click
 
 from . import __version__
 from .config import Config
-from .converge import converge_report, format_report, load_corpus, synthetic_corpus
+from .converge import CorpusError, converge_report, format_report, load_corpus, synthetic_corpus
 from .grader import Decision, Grader, Outcome
 from .hook import (
     emit_snippet,
@@ -32,7 +32,7 @@ from .hook import (
 )
 from .ledger import Ledger, ShapeStats
 from .seed_corpus import seed, seed_summary
-from .shape import ActionShape, normalize, parse_argv_signature
+from .shape import ActionShape, normalize, parse_argv_signature, tool_input_from_signature
 
 
 def _ledger_for(cfg: Config) -> Ledger:
@@ -49,17 +49,10 @@ def _ensure_init(cfg: Config) -> Ledger:
 def _shape_from_args(tool: str | None, signature_args: tuple[str, ...]) -> ActionShape:
     """Build an ActionShape from CLI --tool + positional signature tokens."""
     if tool:
-        tool_name = tool
-        if tool.lower() in {"bash", "shell", "execute_bash"}:
-            tool_input = {"command": " ".join(signature_args)}
-        elif tool.lower() in {"edit", "write", "create_file", "file_editor"}:
-            tool_input = {"file_path": " ".join(signature_args)}
-        elif tool.lower() in {"read", "view_file", "cat"}:
-            tool_input = {"file_path": " ".join(signature_args)}
-        else:
-            tool_input = {"value": " ".join(signature_args)} if signature_args else {}
-    else:
-        tool_name, tool_input = parse_argv_signature(list(signature_args))
+        # shape.py owns which tool_input key each family reads, so the label
+        # lands on the same shape_key the agent's hook payload produces.
+        return normalize(tool, tool_input_from_signature(tool, " ".join(signature_args)))
+    tool_name, tool_input = parse_argv_signature(list(signature_args))
     return normalize(tool_name, tool_input)
 
 
@@ -235,7 +228,16 @@ def ledger_cmd(subcommand, limit, as_json) -> None:
     cfg = Config.load()
     ledger = _ledger_for(cfg)
     if not ledger.is_initialized():
-        click.echo("Ledger not initialized. Run: riskshape init")
+        # --json keeps stdout parseable in every state; the hint goes to stderr
+        # and an uninitialized ledger is an error for scripts and humans alike.
+        payload = (
+            []
+            if subcommand == "labels"
+            else {"tau": cfg.tau, "min_samples": cfg.min_samples, "db": cfg.db_path, "shapes": []}
+        )
+        if as_json:
+            click.echo(json.dumps(payload, indent=2))
+        click.echo("Ledger not initialized. Run: riskshape init", err=True)
         sys.exit(1)
     grader = Grader(ledger, cfg)
     if subcommand == "labels":
@@ -269,9 +271,6 @@ def ledger_cmd(subcommand, limit, as_json) -> None:
         return
     # default: shapes
     shapes = ledger.list_shapes()
-    if not shapes:
-        click.echo("Ledger is empty. Run: riskshape init")
-        return
     if as_json:
         rows = []
         for s in shapes:
@@ -293,6 +292,9 @@ def ledger_cmd(subcommand, limit, as_json) -> None:
                 }
             )
         click.echo(json.dumps({"tau": cfg.tau, "min_samples": cfg.min_samples, "db": cfg.db_path, "shapes": rows}, indent=2))
+        return
+    if not shapes:
+        click.echo("Ledger is empty. Run: riskshape init")
         return
     click.echo(click.style("RiskShape ledger", bold=True) + f"  —  {len(shapes)} shape(s)")
     click.echo(f"  tau={cfg.tau}  min_samples={cfg.min_samples}  db={cfg.db_path}")
@@ -343,7 +345,14 @@ def converge(corpus_path, as_json) -> None:
     to auto_approve once they clear min_samples at p_safe >= tau; novel / unsafe /
     privileged shapes keep escalating.
     """
-    corpus = load_corpus(corpus_path) if corpus_path else synthetic_corpus(500)
+    corpus = synthetic_corpus(500)
+    if corpus_path:
+        try:
+            corpus = load_corpus(corpus_path)
+        except CorpusError as exc:
+            # Operator input, not an internal fault: one-line error, exit 2,
+            # and stdout keeps its JSON contract intact.
+            raise click.UsageError(str(exc)) from exc
     rep = converge_report(corpus)
     if as_json:
         import json as _json
@@ -370,10 +379,8 @@ def stats(as_json) -> None:
     """Quick ledger statistics."""
     cfg = Config.load()
     ledger = _ledger_for(cfg)
-    if not ledger.is_initialized():
-        click.echo("Ledger not initialized. Run: riskshape init")
-        return
-    shapes = ledger.list_shapes()
+    initialized = ledger.is_initialized()
+    shapes = ledger.list_shapes() if initialized else []
     total_safe = sum(s.safe for s in shapes)
     total_unsafe = sum(s.unsafe for s in shapes)
     auto = 0
@@ -397,11 +404,14 @@ def stats(as_json) -> None:
                 indent=2,
             )
         )
-        return
-    click.echo(f"shapes     : {len(shapes)}")
-    click.echo(f"labels     : safe={total_safe}  unsafe={total_unsafe}  total={total_safe + total_unsafe}")
-    click.echo(f"decisions  : auto_approve={auto}  escalate={escalate}")
-    click.echo(f"db         : {cfg.db_path}")
+    else:
+        click.echo(f"shapes     : {len(shapes)}")
+        click.echo(f"labels     : safe={total_safe}  unsafe={total_unsafe}  total={total_safe + total_unsafe}")
+        click.echo(f"decisions  : auto_approve={auto}  escalate={escalate}")
+        click.echo(f"db         : {cfg.db_path}")
+    if not initialized:
+        click.echo("Ledger not initialized. Run: riskshape init", err=True)
+        sys.exit(1)
 
 
 def main(argv: Iterable[str] | None = None) -> int:
